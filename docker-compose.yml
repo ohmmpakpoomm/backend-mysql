@@ -1,0 +1,42 @@
+services:
+  db:
+    image: mysql
+    container_name: my-mysql-container-1
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: test
+    ports:
+      - "3306:3306"
+    networks:
+      - app-network
+    restart: always
+
+  web:
+    build: ./
+    env_file:
+      - ./.env
+    environment:
+      DATABASE_URL: "mysql://root:password@my-mysql-container-1:3306/test"
+      DB_HOST: my-mysql-container-1
+      DB_PORT: 3306
+    ports:
+      - "3000:3000"
+    command: >
+      sh -c '
+        while ! nc -z "$DB_HOST" "$DB_PORT"; do sleep 1; done;
+        echo "Database is up!";
+        if [ ! -f /app/.initialized ]; then
+          npx prisma db push && npx prisma db seed;
+          touch /app/.initialized;
+        fi;
+        npm start
+      '
+    depends_on:
+      - db
+    restart: on-failure
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
